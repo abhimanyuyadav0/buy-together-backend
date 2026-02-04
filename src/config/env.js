@@ -3,6 +3,7 @@ import "dotenv/config";
 const env = {
   NODE_ENV: process.env.NODE_ENV || "development",
   PORT: parseInt(process.env.PORT || "3000", 10),
+  APP_NAME: process.env.APP_NAME || "BuyTogether",
   MONGODB_URI:
     process.env.MONGODB_URI ||
     process.env.MONGO_URI ||

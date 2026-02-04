@@ -16,9 +16,11 @@ const userSchema = new mongoose.Schema(
     toJSON: {
       transform(_doc, ret) {
         ret.id = ret._id.toString();
+        if (ret.createdAt) ret.createdAt = ret.createdAt.toISOString?.() ?? ret.createdAt;
         delete ret._id;
         delete ret.__v;
         delete ret.password;
+        delete ret.updatedAt;
         return ret;
       },
     },
