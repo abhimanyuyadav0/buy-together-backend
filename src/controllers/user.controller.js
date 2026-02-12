@@ -46,7 +46,8 @@ async function login(req, res, next) {
 
 async function getProfile(req, res, next) {
   try {
-    const user = await userService.getProfile(req.user.id);
+    const userId = req.user.id || req.user._id?.toString();
+    const user = await userService.getProfile(userId);
     if (!user) {
       return error(res, "User not found", HTTP_STATUS.NOT_FOUND);
     }
@@ -56,8 +57,33 @@ async function getProfile(req, res, next) {
   }
 }
 
+async function updateProfile(req, res, next) {
+  try {
+    const userId = req.user.id || req.user._id?.toString();
+    const { name, avatar, location, email, mobile } = req.body;
+    const updates = {};
+    if (name !== undefined) updates.name = String(name).trim();
+    if (avatar !== undefined) updates.avatar = avatar;
+    if (location !== undefined) updates.location = location ? String(location).trim() : null;
+    if (email !== undefined && String(email).trim())
+      updates.email = String(email).trim().toLowerCase();
+    if (mobile !== undefined) updates.mobile = mobile ? String(mobile).trim() : null;
+    const user = await userService.updateProfile(userId, updates);
+    if (!user) {
+      return error(res, "User not found", HTTP_STATUS.NOT_FOUND);
+    }
+    if (user === false) {
+      return error(res, "Email is already in use", HTTP_STATUS.BAD_REQUEST);
+    }
+    return success(res, { user }, "Profile updated");
+  } catch (err) {
+    next(err);
+  }
+}
+
 export {
   register,
   login,
   getProfile,
+  updateProfile,
 };

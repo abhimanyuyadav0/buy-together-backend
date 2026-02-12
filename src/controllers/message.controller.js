@@ -36,7 +36,52 @@ async function create(req, res, next) {
   }
 }
 
+async function remove(req, res, next) {
+  try {
+    const userId = req.user.id || req.user._id?.toString();
+    const { chatId, messageId } = req.params;
+    const result = await messageService.remove(chatId, messageId, userId);
+    if (result === null) {
+      return error(res, "Chat or message not found", HTTP_STATUS.NOT_FOUND);
+    }
+    if (result === false) {
+      return error(res, "You can only delete your own messages", HTTP_STATUS.FORBIDDEN);
+    }
+    return success(res, null, "Message deleted");
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function update(req, res, next) {
+  try {
+    const userId = req.user.id || req.user._id?.toString();
+    const { chatId, messageId } = req.params;
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return error(res, "text is required", HTTP_STATUS.BAD_REQUEST);
+    }
+    const message = await messageService.update(
+      chatId,
+      messageId,
+      userId,
+      text.trim()
+    );
+    if (message === null) {
+      return error(res, "Chat or message not found", HTTP_STATUS.NOT_FOUND);
+    }
+    if (message === false) {
+      return error(res, "You can only edit your own messages", HTTP_STATUS.FORBIDDEN);
+    }
+    return success(res, { message }, "Message updated");
+  } catch (err) {
+    next(err);
+  }
+}
+
 export {
   list,
   create,
+  remove,
+  update,
 };

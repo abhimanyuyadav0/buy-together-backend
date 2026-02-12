@@ -41,7 +41,50 @@ async function create(chatId, senderId, text) {
   };
 }
 
+async function remove(chatId, messageId, userId) {
+  const chat = await Chat.findById(chatId).lean();
+  if (!chat) return null;
+  const inChat = chat.participantIds.some(
+    (id) => id.toString() === userId.toString()
+  );
+  if (!inChat) return null;
+  const msg = await Message.findOne({ _id: messageId, chatId });
+  if (!msg) return null;
+  if (msg.senderId.toString() !== userId.toString()) return false;
+  await Message.deleteOne({ _id: messageId });
+  return true;
+}
+
+async function update(chatId, messageId, userId, text) {
+  const chat = await Chat.findById(chatId).lean();
+  if (!chat) return null;
+  const inChat = chat.participantIds.some(
+    (id) => id.toString() === userId.toString()
+  );
+  if (!inChat) return null;
+  const msg = await Message.findOne({ _id: messageId, chatId });
+  if (!msg) return null;
+  if (msg.senderId.toString() !== userId.toString()) return false;
+  if (!text || !text.trim()) return false;
+  const updated = await Message.findOneAndUpdate(
+    { _id: messageId, chatId },
+    { text: text.trim() },
+    { new: true }
+  ).lean();
+  return updated
+    ? {
+        id: updated._id.toString(),
+        chatId: updated.chatId?.toString(),
+        senderId: updated.senderId?.toString(),
+        text: updated.text,
+        createdAt: updated.createdAt?.toISOString?.(),
+      }
+    : null;
+}
+
 export {
   listByChatId,
   create,
+  remove,
+  update,
 };

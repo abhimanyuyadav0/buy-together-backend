@@ -2,14 +2,70 @@ import Post from "../models/post.model.js";
 import Participant from "../models/participant.model.js";
 import Chat from "../models/chat.model.js";
 
+const DEFAULT_MAX_DISTANCE_M = 10000;
+
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 async function list(filters = {}) {
-  const { category, status = "active" } = filters;
-  const query = { status };
+  const { category, status = "active", location, q, lat, lng, maxDistance = DEFAULT_MAX_DISTANCE_M } = filters;
+  const now = new Date();
+  const query = {
+    status: status || "active",
+    $or: [
+      { endDate: { $gt: now } },
+      { endDate: null },
+      { endDate: { $exists: false } },
+    ],
+  };
   if (category) query.category = category;
-  const posts = await Post.find(query)
-    .populate("creatorId", "name email avatar location rating reviewCount createdAt")
-    .sort({ createdAt: -1 })
-    .lean();
+  if (location) {
+    query.location = new RegExp(escapeRegex(location), "i");
+  }
+  // Text search: match q in title, description, location, or category (type)
+  if (q && typeof q === "string" && q.trim()) {
+    const searchTerm = escapeRegex(q.trim());
+    const searchRegex = new RegExp(searchTerm, "i");
+    query.$and = query.$and || [];
+    query.$and.push({
+      $or: [
+        { title: searchRegex },
+        { description: searchRegex },
+        { location: searchRegex },
+        { category: searchRegex },
+      ],
+    });
+  }
+
+  let posts;
+  const hasCoords = typeof lat === "number" && typeof lng === "number" && !Number.isNaN(lat) && !Number.isNaN(lng);
+
+  if (hasCoords) {
+    posts = await Post.find({
+      ...query,
+      $and: [
+        ...(query.$and || []),
+        { locationGeo: { $exists: true, $ne: null } },
+        {
+          locationGeo: {
+            $geoWithin: {
+              $centerSphere: [[lng, lat], maxDistance / 6378100],
+            },
+          },
+        },
+      ],
+    })
+      .populate("creatorId", "name email avatar location rating reviewCount createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
+  } else {
+    posts = await Post.find(query)
+      .populate("creatorId", "name email avatar location rating reviewCount createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
+  }
+
   const postIds = posts.map((p) => p._id);
   const participants = await Participant.find({ postId: { $in: postIds } })
     .populate("userId", "name email avatar location rating reviewCount createdAt")
@@ -49,19 +105,30 @@ function formatUser(u) {
 }
 
 function formatPost(p, participants = []) {
+  const images = Array.isArray(p.images) && p.images.length
+    ? p.images
+    : p.image
+      ? [p.image]
+      : [];
+  const price = p.price != null ? p.price : p.offerPrice;
   return {
     id: p._id.toString(),
     title: p.title,
     description: p.description,
-    image: p.image,
+    image: images[0] || p.image,
+    images,
+    referenceLink: p.referenceLink,
     category: p.category,
+    price: price ?? 0,
     originalPrice: p.originalPrice,
     offerPrice: p.offerPrice,
     quantity: p.quantity,
     maxParticipants: p.maxParticipants,
     currentParticipants: p.currentParticipants ?? participants.length,
     location: p.location,
+    locationGeo: p.locationGeo?.coordinates ? { type: "Point", coordinates: p.locationGeo.coordinates } : null,
     deadline: p.deadline?.toISOString?.(),
+    endDate: p.endDate?.toISOString?.(),
     status: p.status,
     creatorId: p.creatorId?._id?.toString() || p.creatorId?.toString(),
     creator: formatUser(p.creatorId),
@@ -74,7 +141,7 @@ async function getById(id) {
   const post = await Post.findById(id)
     .populate("creatorId", "name email avatar location rating reviewCount createdAt")
     .lean();
-  if (!post) return null;
+  if (!post || post.status === "deleted") return null;
   const participants = await Participant.find({ postId: id })
     .populate("userId", "name email avatar location rating reviewCount createdAt")
     .lean();
@@ -82,18 +149,33 @@ async function getById(id) {
 }
 
 async function create(data) {
+  const locationGeo =
+    data.locationLat != null && data.locationLng != null
+      ? { type: "Point", coordinates: [data.locationLng, data.locationLat] }
+      : null;
+  const images = Array.isArray(data.images) && data.images.length
+    ? data.images
+    : data.image
+      ? [data.image]
+      : [];
+  const price = data.price != null ? data.price : data.offerPrice;
   const post = await Post.create({
     title: data.title,
     description: data.description,
-    image: data.image,
+    image: images[0] || null,
+    images: images.length ? images : null,
+    referenceLink: data.referenceLink,
     category: data.category,
-    originalPrice: data.originalPrice,
-    offerPrice: data.offerPrice,
+    price: price ?? 0,
+    originalPrice: data.originalPrice ?? price,
+    offerPrice: data.offerPrice ?? price,
     quantity: data.quantity,
     maxParticipants: data.maxParticipants,
     currentParticipants: 1,
     location: data.location,
+    locationGeo: locationGeo || undefined,
     deadline: data.deadline,
+    endDate: data.endDate,
     status: "active",
     creatorId: data.creatorId,
   });
@@ -102,6 +184,10 @@ async function create(data) {
     userId: data.creatorId,
     quantity: 1,
     hasPaid: true,
+  });
+  await Chat.create({
+    postId: post._id,
+    participantIds: [data.creatorId],
   });
   return getById(post._id);
 }
@@ -118,7 +204,16 @@ async function join(postId, userId) {
     { $inc: { currentParticipants: 1 } }
   );
   let chat = await Chat.findOne({ postId }).lean();
-  if (!chat) {
+  if (chat) {
+    const joinerId = userId?.toString?.() || userId;
+    const existingIds = (chat.participantIds || []).map((id) => id?.toString?.() || id);
+    if (!existingIds.includes(joinerId)) {
+      await Chat.updateOne(
+        { _id: chat._id },
+        { $addToSet: { participantIds: userId }, updatedAt: new Date() },
+      );
+    }
+  } else {
     const participants = await Participant.find({ postId }).select("userId").lean();
     const creatorId = post.creatorId?.toString?.() || post.creatorId;
     const participantIds = [creatorId];
@@ -135,8 +230,8 @@ async function update(postId, userId, updates) {
   const post = await Post.findOne({ _id: postId, creatorId: userId });
   if (!post) return null;
   const allowed = [
-    "title", "description", "image", "category", "originalPrice", "offerPrice",
-    "quantity", "maxParticipants", "location", "deadline", "status",
+    "title", "description", "image", "images", "category", "price", "originalPrice", "offerPrice",
+    "quantity", "maxParticipants", "location", "locationGeo", "deadline", "endDate", "status",
   ];
   allowed.forEach((key) => {
     if (updates[key] !== undefined) post[key] = updates[key];
@@ -148,8 +243,7 @@ async function update(postId, userId, updates) {
 async function remove(postId, userId) {
   const post = await Post.findOne({ _id: postId, creatorId: userId });
   if (!post) return null;
-  await Post.deleteOne({ _id: postId });
-  await Participant.deleteMany({ postId });
+  await Post.updateOne({ _id: postId }, { status: "deleted" });
   return true;
 }
 

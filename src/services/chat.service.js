@@ -28,6 +28,7 @@ async function listForUser(userId) {
     const post = await Post.findById(c.postId?._id || c.postId)
       .populate("creatorId", "name email avatar location rating reviewCount createdAt")
       .lean();
+    if (!post || post.status === "deleted") continue;
     const participants = await Participant.find({ postId: c.postId })
       .populate("userId", "name email avatar location rating reviewCount createdAt")
       .lean();
@@ -56,7 +57,9 @@ async function listForUser(userId) {
             title: post.title,
             description: post.description,
             image: post.image,
+            images: post.images,
             category: post.category,
+            price: post.price,
             originalPrice: post.originalPrice,
             offerPrice: post.offerPrice,
             quantity: post.quantity,
@@ -90,6 +93,7 @@ async function getById(chatId, userId) {
   const post = await Post.findById(chat.postId?._id || chat.postId)
     .populate("creatorId", "name email avatar location rating reviewCount createdAt")
     .lean();
+  if (!post || post.status === "deleted") return null;
   const participants = await Participant.find({ postId: chat.postId })
     .populate("userId", "name email avatar location rating reviewCount createdAt")
     .lean();
@@ -118,7 +122,9 @@ async function getById(chatId, userId) {
           title: post.title,
           description: post.description,
           image: post.image,
+          images: post.images,
           category: post.category,
+          price: post.price,
           originalPrice: post.originalPrice,
           offerPrice: post.offerPrice,
           quantity: post.quantity,
@@ -150,7 +156,7 @@ async function findOrCreateByPostId(postId, userId) {
     return getById(chat._id, userId);
   }
   const post = await Post.findById(postId).lean();
-  if (!post) return null;
+  if (!post || post.status === "deleted") return null;
   const participants = await Participant.find({ postId })
     .populate("userId")
     .lean();
@@ -168,8 +174,21 @@ async function findOrCreateByPostId(postId, userId) {
   return getById(chat._id, userId);
 }
 
+async function remove(chatId, userId) {
+  const chat = await Chat.findById(chatId).lean();
+  if (!chat) return false;
+  const inChat = chat.participantIds.some(
+    (id) => id.toString() === userId.toString()
+  );
+  if (!inChat) return false;
+  await Message.deleteMany({ chatId });
+  await Chat.deleteOne({ _id: chatId });
+  return true;
+}
+
 export {
   listForUser,
   getById,
   findOrCreateByPostId,
+  remove,
 };

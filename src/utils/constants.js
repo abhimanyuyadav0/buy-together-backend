@@ -12,7 +12,7 @@ export const HTTP_STATUS = {
 export const CATEGORIES = [
   { id: "electronics", name: "Electronics", icon: "smartphone" },
   { id: "fashion", name: "Fashion", icon: "shopping-bag" },
-  { id: "home", name: "Home", icon: "home" },
+  { id: "decorations", name: "Decorations", icon: "home" },
   { id: "sports", name: "Sports", icon: "activity" },
   { id: "beauty", name: "Beauty", icon: "heart" },
   { id: "food", name: "Food", icon: "coffee" },

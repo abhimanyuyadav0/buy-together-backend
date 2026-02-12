@@ -4,8 +4,19 @@ import { HTTP_STATUS } from "../utils/constants.js";
 
 async function list(req, res, next) {
   try {
-    const { category, status } = req.query;
-    const posts = await postService.list({ category, status });
+    const { category, status, location, q, lat, lng, maxDistance } = req.query;
+    const latNum = lat != null ? parseFloat(lat) : undefined;
+    const lngNum = lng != null ? parseFloat(lng) : undefined;
+    const maxDistNum = maxDistance != null ? parseInt(maxDistance, 10) : undefined;
+    const posts = await postService.list({
+      category,
+      status,
+      location,
+      q: q ?? undefined,
+      lat: latNum,
+      lng: lngNum,
+      maxDistance: maxDistNum,
+    });
     return success(res, { posts }, "Posts");
   } catch (err) {
     next(err);
@@ -28,26 +39,33 @@ async function create(req, res, next) {
   try {
     const userId = req.user.id || req.user._id?.toString();
     const body = req.body;
+    const images = Array.isArray(body.images) ? body.images : body.image ? [body.image] : [];
     if (
       !body.title ||
       !body.description ||
-      body.originalPrice == null ||
-      body.offerPrice == null ||
+      images.length === 0 ||
+      (body.price == null && body.offerPrice == null) ||
       !body.quantity ||
       !body.maxParticipants ||
       !body.category ||
-      !body.deadline
+      !body.deadline ||
+      !body.endDate
     ) {
       return error(
         res,
-        "title, description, originalPrice, offerPrice, quantity, maxParticipants, category, deadline are required",
+        "title, description, images (or image), price (or offerPrice), quantity, maxParticipants, category, deadline, endDate are required",
         HTTP_STATUS.BAD_REQUEST
       );
     }
     const post = await postService.create({
       ...body,
+      images: images.length ? images : undefined,
+      price: body.price != null ? parseFloat(body.price) : body.offerPrice != null ? parseFloat(body.offerPrice) : undefined,
       creatorId: userId,
       deadline: new Date(body.deadline),
+      endDate: new Date(body.endDate),
+      locationLat: body.locationLat != null ? parseFloat(body.locationLat) : undefined,
+      locationLng: body.locationLng != null ? parseFloat(body.locationLng) : undefined,
     });
     return success(res, { post }, "Post created", HTTP_STATUS.CREATED);
   } catch (err) {

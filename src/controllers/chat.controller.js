@@ -42,8 +42,22 @@ async function findOrCreateByPostId(req, res, next) {
   }
 }
 
+async function remove(req, res, next) {
+  try {
+    const userId = req.user.id || req.user._id?.toString();
+    const ok = await chatService.remove(req.params.chatId, userId);
+    if (!ok) {
+      return error(res, "Chat not found or forbidden", HTTP_STATUS.NOT_FOUND);
+    }
+    return success(res, null, "Chat deleted");
+  } catch (err) {
+    next(err);
+  }
+}
+
 export {
   list,
   getById,
   findOrCreateByPostId,
+  remove,
 };

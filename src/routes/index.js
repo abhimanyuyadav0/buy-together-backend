@@ -4,6 +4,7 @@ import userRoutes from "./user.routes.js";
 import postRoutes from "./post.routes.js";
 import chatRoutes from "./chat.routes.js";
 import categoryRoutes from "./category.routes.js";
+import uploadRoutes from "./upload.routes.js";
 
 const router = express.Router();
 
@@ -12,5 +13,6 @@ router.use("/users", userRoutes);
 router.use("/posts", postRoutes);
 router.use("/chats", chatRoutes);
 router.use("/categories", categoryRoutes);
+router.use("/uploads", uploadRoutes);
 
 export default router;
