@@ -57,6 +57,19 @@ async function getProfile(req, res, next) {
   }
 }
 
+async function getPublicProfile(req, res, next) {
+  try {
+    const { id: userId } = req.params;
+    const user = await userService.getPublicProfile(userId);
+    if (!user) {
+      return error(res, "User not found", HTTP_STATUS.NOT_FOUND);
+    }
+    return success(res, { user }, "Profile");
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function updateProfile(req, res, next) {
   try {
     const userId = req.user.id || req.user._id?.toString();
@@ -85,5 +98,6 @@ export {
   register,
   login,
   getProfile,
+  getPublicProfile,
   updateProfile,
 };

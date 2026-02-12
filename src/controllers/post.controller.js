@@ -83,7 +83,38 @@ async function join(req, res, next) {
     if (result.full) {
       return error(res, "Post is full", HTTP_STATUS.BAD_REQUEST);
     }
-    return success(res, { post: result }, "Joined post");
+    return success(res, { post: result }, "Join request sent");
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function approveParticipant(req, res, next) {
+  try {
+    const ownerId = req.user.id || req.user._id?.toString();
+    const { id: postId, participantId } = req.params;
+    const result = await postService.approveParticipant(postId, participantId, ownerId);
+    if (!result) {
+      return error(res, "Post or request not found", HTTP_STATUS.NOT_FOUND);
+    }
+    if (result.full) {
+      return error(res, "Post is full", HTTP_STATUS.BAD_REQUEST);
+    }
+    return success(res, { post: result }, "Request approved");
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function removeParticipant(req, res, next) {
+  try {
+    const ownerId = req.user.id || req.user._id?.toString();
+    const { id: postId, participantId } = req.params;
+    const result = await postService.removeParticipant(postId, participantId, ownerId);
+    if (!result) {
+      return error(res, "Post or participant not found", HTTP_STATUS.NOT_FOUND);
+    }
+    return success(res, { post: result }, "Participant removed");
   } catch (err) {
     next(err);
   }
@@ -120,6 +151,8 @@ export {
   getById,
   create,
   join,
+  approveParticipant,
+  removeParticipant,
   update,
   remove,
 };

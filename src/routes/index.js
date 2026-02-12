@@ -5,6 +5,7 @@ import postRoutes from "./post.routes.js";
 import chatRoutes from "./chat.routes.js";
 import categoryRoutes from "./category.routes.js";
 import uploadRoutes from "./upload.routes.js";
+import ratingRoutes from "./rating.routes.js";
 
 const router = express.Router();
 
@@ -14,5 +15,6 @@ router.use("/posts", postRoutes);
 router.use("/chats", chatRoutes);
 router.use("/categories", categoryRoutes);
 router.use("/uploads", uploadRoutes);
+router.use("/ratings", ratingRoutes);
 
 export default router;

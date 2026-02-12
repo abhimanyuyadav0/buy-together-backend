@@ -86,6 +86,7 @@ function formatParticipant(p) {
     postId: p.postId?.toString(),
     quantity: p.quantity,
     hasPaid: p.hasPaid,
+    status: p.status ?? "approved",
     joinedAt: p.createdAt?.toISOString?.(),
   };
 }
@@ -184,6 +185,7 @@ async function create(data) {
     userId: data.creatorId,
     quantity: 1,
     hasPaid: true,
+    status: "approved",
   });
   await Chat.create({
     postId: post._id,
@@ -192,29 +194,53 @@ async function create(data) {
   return getById(post._id);
 }
 
+// Request to join: creates a pending participant. Owner must approve to confirm.
 async function join(postId, userId) {
   const post = await Post.findById(postId).lean();
   if (!post) return null;
   if (post.currentParticipants >= post.maxParticipants) return { full: true };
   const existing = await Participant.findOne({ postId, userId });
   if (existing) return getById(postId);
-  await Participant.create({ postId, userId, quantity: 1, hasPaid: false });
+  await Participant.create({
+    postId,
+    userId,
+    quantity: 1,
+    hasPaid: false,
+    status: "pending",
+  });
+  return getById(postId);
+}
+
+async function approveParticipant(postId, participantId, ownerId) {
+  const post = await Post.findOne({ _id: postId, creatorId: ownerId }).lean();
+  if (!post) return null;
+  if (post.currentParticipants >= post.maxParticipants) return { full: true };
+  const participant = await Participant.findOne({
+    _id: participantId,
+    postId,
+    status: "pending",
+  }).lean();
+  if (!participant) return null;
+  await Participant.updateOne(
+    { _id: participantId },
+    { $set: { status: "approved" } },
+  );
   await Post.updateOne(
     { _id: postId },
-    { $inc: { currentParticipants: 1 } }
+    { $inc: { currentParticipants: 1 } },
   );
-  let chat = await Chat.findOne({ postId }).lean();
+  const chat = await Chat.findOne({ postId }).lean();
   if (chat) {
-    const joinerId = userId?.toString?.() || userId;
+    const joinerId = participant.userId?.toString?.() || participant.userId;
     const existingIds = (chat.participantIds || []).map((id) => id?.toString?.() || id);
     if (!existingIds.includes(joinerId)) {
       await Chat.updateOne(
         { _id: chat._id },
-        { $addToSet: { participantIds: userId }, updatedAt: new Date() },
+        { $addToSet: { participantIds: participant.userId }, updatedAt: new Date() },
       );
     }
   } else {
-    const participants = await Participant.find({ postId }).select("userId").lean();
+    const participants = await Participant.find({ postId, status: "approved" }).select("userId").lean();
     const creatorId = post.creatorId?.toString?.() || post.creatorId;
     const participantIds = [creatorId];
     participants.forEach((p) => {
@@ -222,6 +248,36 @@ async function join(postId, userId) {
       if (uid && !participantIds.includes(uid)) participantIds.push(uid);
     });
     await Chat.create({ postId, participantIds });
+  }
+  return getById(postId);
+}
+
+async function removeParticipant(postId, participantId, ownerId) {
+  const post = await Post.findOne({ _id: postId, creatorId: ownerId }).lean();
+  if (!post) return null;
+  const participant = await Participant.findOne({
+    _id: participantId,
+    postId,
+  }).lean();
+  if (!participant) return null;
+  const participantUserId = participant.userId?.toString?.() || participant.userId;
+  const creatorId = post.creatorId?.toString?.() || post.creatorId;
+  if (participantUserId === creatorId) return null; // cannot remove post owner
+  const wasApproved = participant.status === "approved";
+  await Participant.deleteOne({ _id: participantId });
+  if (wasApproved) {
+    await Post.updateOne(
+      { _id: postId },
+      { $inc: { currentParticipants: -1 } },
+    );
+    const chat = await Chat.findOne({ postId }).lean();
+    if (chat && participant.userId) {
+      const uid = participant.userId?.toString?.() || participant.userId;
+      await Chat.updateOne(
+        { _id: chat._id },
+        { $pull: { participantIds: participant.userId }, updatedAt: new Date() },
+      );
+    }
   }
   return getById(postId);
 }
@@ -252,6 +308,8 @@ export {
   getById,
   create,
   join,
+  approveParticipant,
+  removeParticipant,
   update,
   remove,
 };

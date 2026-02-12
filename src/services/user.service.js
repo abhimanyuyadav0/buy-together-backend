@@ -23,6 +23,23 @@ async function getProfile(id) {
   return User.findById(id);
 }
 
+/** Public profile for viewing another user (no email). */
+async function getPublicProfile(id) {
+  const doc = await User.findById(id)
+    .select("name avatar location rating reviewCount createdAt")
+    .lean();
+  if (!doc) return null;
+  return {
+    id: doc._id.toString(),
+    name: doc.name,
+    avatar: doc.avatar ?? null,
+    location: doc.location ?? null,
+    rating: doc.rating ?? 0,
+    reviewCount: doc.reviewCount ?? 0,
+    createdAt: doc.createdAt?.toISOString?.(),
+  };
+}
+
 async function updateProfile(userId, updates) {
   const allowed = ["name", "avatar", "location", "email", "mobile"];
   const doc = await User.findById(userId);
@@ -46,5 +63,6 @@ export {
   findByEmail,
   findById,
   getProfile,
+  getPublicProfile,
   updateProfile,
 };
