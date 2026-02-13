@@ -1,8 +1,17 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+
+dotenv.config();
+if (process.env.NODE_ENV === "production") {
+  dotenv.config({ path: ".env.production", override: true });
+}
 
 const env = {
   NODE_ENV: process.env.NODE_ENV || "development",
-  PORT: parseInt(process.env.PORT || "3000", 10),
+  PORT: parseInt(
+    process.env.PORT ||
+      (process.env.NODE_ENV === "production" ? "5003" : "5002"),
+    10,
+  ),
   APP_NAME: process.env.APP_NAME || "BuyTogether",
   MONGODB_URI:
     process.env.MONGODB_URI ||
