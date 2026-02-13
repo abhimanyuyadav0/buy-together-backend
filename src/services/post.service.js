@@ -1,6 +1,7 @@
 import Post from "../models/post.model.js";
 import Participant from "../models/participant.model.js";
 import Chat from "../models/chat.model.js";
+import User from "../models/user.model.js";
 
 const DEFAULT_MAX_DISTANCE_M = 10000;
 
@@ -56,19 +57,19 @@ async function list(filters = {}) {
         },
       ],
     })
-      .populate("creatorId", "name email avatar location rating reviewCount createdAt")
+      .populate("creatorId", "name email avatar location currency rating reviewCount createdAt")
       .sort({ createdAt: -1 })
       .lean();
   } else {
     posts = await Post.find(query)
-      .populate("creatorId", "name email avatar location rating reviewCount createdAt")
+      .populate("creatorId", "name email avatar location currency rating reviewCount createdAt")
       .sort({ createdAt: -1 })
       .lean();
   }
 
   const postIds = posts.map((p) => p._id);
   const participants = await Participant.find({ postId: { $in: postIds } })
-    .populate("userId", "name email avatar location rating reviewCount createdAt")
+    .populate("userId", "name email avatar location currency rating reviewCount createdAt")
     .lean();
   const byPost = {};
   participants.forEach((p) => {
@@ -99,6 +100,7 @@ function formatUser(u) {
     email: u.email,
     avatar: u.avatar,
     location: u.location,
+    currency: u.currency ?? "INR",
     rating: u.rating ?? 0,
     reviewCount: u.reviewCount ?? 0,
     createdAt: u.createdAt?.toISOString?.(),
@@ -123,6 +125,7 @@ function formatPost(p, participants = []) {
     price: price ?? 0,
     originalPrice: p.originalPrice,
     offerPrice: p.offerPrice,
+    currency: p.currency ?? "INR",
     quantity: p.quantity,
     maxParticipants: p.maxParticipants,
     currentParticipants: p.currentParticipants ?? participants.length,
@@ -140,11 +143,11 @@ function formatPost(p, participants = []) {
 
 async function getById(id) {
   const post = await Post.findById(id)
-    .populate("creatorId", "name email avatar location rating reviewCount createdAt")
+    .populate("creatorId", "name email avatar location currency rating reviewCount createdAt")
     .lean();
   if (!post || post.status === "deleted") return null;
   const participants = await Participant.find({ postId: id })
-    .populate("userId", "name email avatar location rating reviewCount createdAt")
+    .populate("userId", "name email avatar location currency rating reviewCount createdAt")
     .lean();
   return formatPost(post, participants.map(formatParticipant));
 }
@@ -160,6 +163,12 @@ async function create(data) {
       ? [data.image]
       : [];
   const price = data.price != null ? data.price : data.offerPrice;
+  const creator = await User.findById(data.creatorId).select("currency").lean();
+  const allowed = ["INR", "USD", "SAR", "GBP", "EUR"];
+  const currency =
+    creator?.currency && allowed.includes(String(creator.currency).toUpperCase().trim())
+      ? String(creator.currency).toUpperCase().trim()
+      : "INR";
   const post = await Post.create({
     title: data.title,
     description: data.description,
@@ -170,6 +179,7 @@ async function create(data) {
     price: price ?? 0,
     originalPrice: data.originalPrice ?? price,
     offerPrice: data.offerPrice ?? price,
+    currency,
     quantity: data.quantity,
     maxParticipants: data.maxParticipants,
     currentParticipants: 1,

@@ -12,6 +12,7 @@ function formatUser(u) {
     email: u.email,
     avatar: u.avatar,
     location: u.location,
+    currency: u.currency ?? "INR",
     rating: u.rating ?? 0,
     reviewCount: u.reviewCount ?? 0,
     createdAt: u.createdAt?.toISOString?.(),
@@ -26,11 +27,11 @@ async function listForUser(userId) {
   const result = [];
   for (const c of chats) {
     const post = await Post.findById(c.postId?._id || c.postId)
-      .populate("creatorId", "name email avatar location rating reviewCount createdAt")
+      .populate("creatorId", "name email avatar location currency rating reviewCount createdAt")
       .lean();
     if (!post || post.status === "deleted") continue;
     const participants = await Participant.find({ postId: c.postId })
-      .populate("userId", "name email avatar location rating reviewCount createdAt")
+      .populate("userId", "name email avatar location currency rating reviewCount createdAt")
       .lean();
     const creator = post?.creatorId;
     const participantsList = [formatUser(creator)].concat(
@@ -62,6 +63,7 @@ async function listForUser(userId) {
             price: post.price,
             originalPrice: post.originalPrice,
             offerPrice: post.offerPrice,
+            currency: post.currency ?? "INR",
             quantity: post.quantity,
             maxParticipants: post.maxParticipants,
             currentParticipants: post.currentParticipants,
@@ -91,11 +93,11 @@ async function getById(chatId, userId) {
   );
   if (!inChat) return null;
   const post = await Post.findById(chat.postId?._id || chat.postId)
-    .populate("creatorId", "name email avatar location rating reviewCount createdAt")
+    .populate("creatorId", "name email avatar location currency rating reviewCount createdAt")
     .lean();
   if (!post || post.status === "deleted") return null;
   const participants = await Participant.find({ postId: chat.postId })
-    .populate("userId", "name email avatar location rating reviewCount createdAt")
+    .populate("userId", "name email avatar location currency rating reviewCount createdAt")
     .lean();
   const creator = post?.creatorId;
   const participantsList = [formatUser(creator)].concat(
@@ -127,6 +129,7 @@ async function getById(chatId, userId) {
           price: post.price,
           originalPrice: post.originalPrice,
           offerPrice: post.offerPrice,
+          currency: post.currency ?? "INR",
           quantity: post.quantity,
           maxParticipants: post.maxParticipants,
           currentParticipants: post.currentParticipants,

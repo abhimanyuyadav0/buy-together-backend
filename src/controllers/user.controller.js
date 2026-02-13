@@ -10,11 +10,11 @@ function signToken(userId) {
 
 async function register(req, res, next) {
   try {
-    const { name, email, password, avatar, location } = req.body;
+    const { name, email, password, avatar, location, currency } = req.body;
     if (!name || !email || !password) {
       return error(res, "Name, email and password are required", HTTP_STATUS.BAD_REQUEST);
     }
-    const user = await userService.createUser({ name, email, password, avatar, location });
+    const user = await userService.createUser({ name, email, password, avatar, location, currency });
     const token = signToken(user.id);
     return success(res, { user, token }, "User registered", HTTP_STATUS.CREATED);
   } catch (err) {
@@ -73,7 +73,7 @@ async function getPublicProfile(req, res, next) {
 async function updateProfile(req, res, next) {
   try {
     const userId = req.user.id || req.user._id?.toString();
-    const { name, avatar, location, email, mobile } = req.body;
+    const { name, avatar, location, email, mobile, currency } = req.body;
     const updates = {};
     if (name !== undefined) updates.name = String(name).trim();
     if (avatar !== undefined) updates.avatar = avatar;
@@ -81,6 +81,7 @@ async function updateProfile(req, res, next) {
     if (email !== undefined && String(email).trim())
       updates.email = String(email).trim().toLowerCase();
     if (mobile !== undefined) updates.mobile = mobile ? String(mobile).trim() : null;
+    if (currency !== undefined) updates.currency = String(currency).trim().toUpperCase();
     const user = await userService.updateProfile(userId, updates);
     if (!user) {
       return error(res, "User not found", HTTP_STATUS.NOT_FOUND);
