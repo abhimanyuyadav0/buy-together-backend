@@ -3,5 +3,13 @@ import * as postService from "./post.service.js";
 import * as chatService from "./chat.service.js";
 import * as messageService from "./message.service.js";
 import * as ratingService from "./rating.service.js";
+import * as verificationService from "./verification.service.js";
 
-export { userService, postService, chatService, messageService, ratingService };
+export {
+  userService,
+  postService,
+  chatService,
+  messageService,
+  ratingService,
+  verificationService,
+};
