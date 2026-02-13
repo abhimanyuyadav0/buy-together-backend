@@ -6,6 +6,11 @@ const participantSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     quantity: { type: Number, default: 1, min: 1 },
     hasPaid: { type: Boolean, default: false },
+    status: {
+      type: String,
+      enum: ["pending", "approved"],
+      default: "approved",
+    },
   },
   {
     timestamps: true,

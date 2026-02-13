@@ -11,6 +11,7 @@ const postSchema = new mongoose.Schema(
     price: { type: Number, default: null },
     originalPrice: { type: Number, default: null },
     offerPrice: { type: Number, default: null },
+    currency: { type: String, default: "INR", trim: true },
     quantity: { type: Number, required: true, min: 1 },
     maxParticipants: { type: Number, required: true, min: 1 },
     currentParticipants: { type: Number, default: 1, min: 0 },

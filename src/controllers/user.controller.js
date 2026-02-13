@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import { env } from "../config/index.js";
-import { userService } from "../services/index.js";
+import { userService, verificationService } from "../services/index.js";
 import { success, error } from "../utils/response.util.js";
 import { HTTP_STATUS } from "../utils/constants.js";
 
@@ -8,13 +8,36 @@ function signToken(userId) {
   return jwt.sign({ userId }, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN });
 }
 
+async function sendSignupOtp(req, res, next) {
+  try {
+    const email = req.body?.email;
+    if (!email || !String(email).trim()) {
+      return error(res, "Email is required", HTTP_STATUS.BAD_REQUEST);
+    }
+    const result = await verificationService.createSignupOtp(email);
+    if (!result.success) {
+      return error(res, result.message, HTTP_STATUS.BAD_REQUEST);
+    }
+    return success(res, { sent: true }, "Verification code sent to your email");
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function register(req, res, next) {
   try {
-    const { name, email, password, avatar, location } = req.body;
+    const { name, email, password, otp, avatar, location, currency } = req.body;
     if (!name || !email || !password) {
       return error(res, "Name, email and password are required", HTTP_STATUS.BAD_REQUEST);
     }
-    const user = await userService.createUser({ name, email, password, avatar, location });
+    if (!otp || !String(otp).trim()) {
+      return error(res, "Verification code is required", HTTP_STATUS.BAD_REQUEST);
+    }
+    const valid = await verificationService.verifySignupOtp(email, otp);
+    if (!valid) {
+      return error(res, "Invalid or expired verification code", HTTP_STATUS.BAD_REQUEST);
+    }
+    const user = await userService.createUser({ name, email, password, avatar, location, currency });
     const token = signToken(user.id);
     return success(res, { user, token }, "User registered", HTTP_STATUS.CREATED);
   } catch (err) {
@@ -57,10 +80,23 @@ async function getProfile(req, res, next) {
   }
 }
 
+async function getPublicProfile(req, res, next) {
+  try {
+    const { id: userId } = req.params;
+    const user = await userService.getPublicProfile(userId);
+    if (!user) {
+      return error(res, "User not found", HTTP_STATUS.NOT_FOUND);
+    }
+    return success(res, { user }, "Profile");
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function updateProfile(req, res, next) {
   try {
     const userId = req.user.id || req.user._id?.toString();
-    const { name, avatar, location, email, mobile } = req.body;
+    const { name, avatar, location, email, mobile, currency } = req.body;
     const updates = {};
     if (name !== undefined) updates.name = String(name).trim();
     if (avatar !== undefined) updates.avatar = avatar;
@@ -68,6 +104,7 @@ async function updateProfile(req, res, next) {
     if (email !== undefined && String(email).trim())
       updates.email = String(email).trim().toLowerCase();
     if (mobile !== undefined) updates.mobile = mobile ? String(mobile).trim() : null;
+    if (currency !== undefined) updates.currency = String(currency).trim().toUpperCase();
     const user = await userService.updateProfile(userId, updates);
     if (!user) {
       return error(res, "User not found", HTTP_STATUS.NOT_FOUND);
@@ -82,8 +119,10 @@ async function updateProfile(req, res, next) {
 }
 
 export {
+  sendSignupOtp,
   register,
   login,
   getProfile,
+  getPublicProfile,
   updateProfile,
 };

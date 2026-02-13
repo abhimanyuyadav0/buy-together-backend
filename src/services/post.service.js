@@ -1,6 +1,7 @@
 import Post from "../models/post.model.js";
 import Participant from "../models/participant.model.js";
 import Chat from "../models/chat.model.js";
+import User from "../models/user.model.js";
 
 const DEFAULT_MAX_DISTANCE_M = 10000;
 
@@ -56,19 +57,19 @@ async function list(filters = {}) {
         },
       ],
     })
-      .populate("creatorId", "name email avatar location rating reviewCount createdAt")
+      .populate("creatorId", "name email avatar location currency rating reviewCount createdAt")
       .sort({ createdAt: -1 })
       .lean();
   } else {
     posts = await Post.find(query)
-      .populate("creatorId", "name email avatar location rating reviewCount createdAt")
+      .populate("creatorId", "name email avatar location currency rating reviewCount createdAt")
       .sort({ createdAt: -1 })
       .lean();
   }
 
   const postIds = posts.map((p) => p._id);
   const participants = await Participant.find({ postId: { $in: postIds } })
-    .populate("userId", "name email avatar location rating reviewCount createdAt")
+    .populate("userId", "name email avatar location currency rating reviewCount createdAt")
     .lean();
   const byPost = {};
   participants.forEach((p) => {
@@ -86,6 +87,7 @@ function formatParticipant(p) {
     postId: p.postId?.toString(),
     quantity: p.quantity,
     hasPaid: p.hasPaid,
+    status: p.status ?? "approved",
     joinedAt: p.createdAt?.toISOString?.(),
   };
 }
@@ -98,6 +100,7 @@ function formatUser(u) {
     email: u.email,
     avatar: u.avatar,
     location: u.location,
+    currency: u.currency ?? "INR",
     rating: u.rating ?? 0,
     reviewCount: u.reviewCount ?? 0,
     createdAt: u.createdAt?.toISOString?.(),
@@ -122,6 +125,7 @@ function formatPost(p, participants = []) {
     price: price ?? 0,
     originalPrice: p.originalPrice,
     offerPrice: p.offerPrice,
+    currency: p.currency ?? "INR",
     quantity: p.quantity,
     maxParticipants: p.maxParticipants,
     currentParticipants: p.currentParticipants ?? participants.length,
@@ -139,11 +143,11 @@ function formatPost(p, participants = []) {
 
 async function getById(id) {
   const post = await Post.findById(id)
-    .populate("creatorId", "name email avatar location rating reviewCount createdAt")
+    .populate("creatorId", "name email avatar location currency rating reviewCount createdAt")
     .lean();
   if (!post || post.status === "deleted") return null;
   const participants = await Participant.find({ postId: id })
-    .populate("userId", "name email avatar location rating reviewCount createdAt")
+    .populate("userId", "name email avatar location currency rating reviewCount createdAt")
     .lean();
   return formatPost(post, participants.map(formatParticipant));
 }
@@ -159,6 +163,12 @@ async function create(data) {
       ? [data.image]
       : [];
   const price = data.price != null ? data.price : data.offerPrice;
+  const creator = await User.findById(data.creatorId).select("currency").lean();
+  const allowed = ["INR", "USD", "SAR", "GBP", "EUR"];
+  const currency =
+    creator?.currency && allowed.includes(String(creator.currency).toUpperCase().trim())
+      ? String(creator.currency).toUpperCase().trim()
+      : "INR";
   const post = await Post.create({
     title: data.title,
     description: data.description,
@@ -169,6 +179,7 @@ async function create(data) {
     price: price ?? 0,
     originalPrice: data.originalPrice ?? price,
     offerPrice: data.offerPrice ?? price,
+    currency,
     quantity: data.quantity,
     maxParticipants: data.maxParticipants,
     currentParticipants: 1,
@@ -184,6 +195,7 @@ async function create(data) {
     userId: data.creatorId,
     quantity: 1,
     hasPaid: true,
+    status: "approved",
   });
   await Chat.create({
     postId: post._id,
@@ -192,29 +204,53 @@ async function create(data) {
   return getById(post._id);
 }
 
+// Request to join: creates a pending participant. Owner must approve to confirm.
 async function join(postId, userId) {
   const post = await Post.findById(postId).lean();
   if (!post) return null;
   if (post.currentParticipants >= post.maxParticipants) return { full: true };
   const existing = await Participant.findOne({ postId, userId });
   if (existing) return getById(postId);
-  await Participant.create({ postId, userId, quantity: 1, hasPaid: false });
+  await Participant.create({
+    postId,
+    userId,
+    quantity: 1,
+    hasPaid: false,
+    status: "pending",
+  });
+  return getById(postId);
+}
+
+async function approveParticipant(postId, participantId, ownerId) {
+  const post = await Post.findOne({ _id: postId, creatorId: ownerId }).lean();
+  if (!post) return null;
+  if (post.currentParticipants >= post.maxParticipants) return { full: true };
+  const participant = await Participant.findOne({
+    _id: participantId,
+    postId,
+    status: "pending",
+  }).lean();
+  if (!participant) return null;
+  await Participant.updateOne(
+    { _id: participantId },
+    { $set: { status: "approved" } },
+  );
   await Post.updateOne(
     { _id: postId },
-    { $inc: { currentParticipants: 1 } }
+    { $inc: { currentParticipants: 1 } },
   );
-  let chat = await Chat.findOne({ postId }).lean();
+  const chat = await Chat.findOne({ postId }).lean();
   if (chat) {
-    const joinerId = userId?.toString?.() || userId;
+    const joinerId = participant.userId?.toString?.() || participant.userId;
     const existingIds = (chat.participantIds || []).map((id) => id?.toString?.() || id);
     if (!existingIds.includes(joinerId)) {
       await Chat.updateOne(
         { _id: chat._id },
-        { $addToSet: { participantIds: userId }, updatedAt: new Date() },
+        { $addToSet: { participantIds: participant.userId }, updatedAt: new Date() },
       );
     }
   } else {
-    const participants = await Participant.find({ postId }).select("userId").lean();
+    const participants = await Participant.find({ postId, status: "approved" }).select("userId").lean();
     const creatorId = post.creatorId?.toString?.() || post.creatorId;
     const participantIds = [creatorId];
     participants.forEach((p) => {
@@ -222,6 +258,36 @@ async function join(postId, userId) {
       if (uid && !participantIds.includes(uid)) participantIds.push(uid);
     });
     await Chat.create({ postId, participantIds });
+  }
+  return getById(postId);
+}
+
+async function removeParticipant(postId, participantId, ownerId) {
+  const post = await Post.findOne({ _id: postId, creatorId: ownerId }).lean();
+  if (!post) return null;
+  const participant = await Participant.findOne({
+    _id: participantId,
+    postId,
+  }).lean();
+  if (!participant) return null;
+  const participantUserId = participant.userId?.toString?.() || participant.userId;
+  const creatorId = post.creatorId?.toString?.() || post.creatorId;
+  if (participantUserId === creatorId) return null; // cannot remove post owner
+  const wasApproved = participant.status === "approved";
+  await Participant.deleteOne({ _id: participantId });
+  if (wasApproved) {
+    await Post.updateOne(
+      { _id: postId },
+      { $inc: { currentParticipants: -1 } },
+    );
+    const chat = await Chat.findOne({ postId }).lean();
+    if (chat && participant.userId) {
+      const uid = participant.userId?.toString?.() || participant.userId;
+      await Chat.updateOne(
+        { _id: chat._id },
+        { $pull: { participantIds: participant.userId }, updatedAt: new Date() },
+      );
+    }
   }
   return getById(postId);
 }
@@ -252,6 +318,8 @@ export {
   getById,
   create,
   join,
+  approveParticipant,
+  removeParticipant,
   update,
   remove,
 };
