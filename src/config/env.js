@@ -12,11 +12,11 @@ const env = {
       (process.env.NODE_ENV === "production" ? "5003" : "5002"),
     10,
   ),
-  APP_NAME: process.env.APP_NAME || "BuyTogether",
+  APP_NAME: process.env.APP_NAME || "DealSplitr",
   MONGODB_URI:
     process.env.MONGODB_URI ||
     process.env.MONGO_URI ||
-    "mongodb://localhost:27017/buy-together",
+    "mongodb://localhost:27017/dealsplitr",
   JWT_SECRET: process.env.JWT_SECRET || "your-jwt-secret-change-in-production",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "",
@@ -28,7 +28,7 @@ const env = {
   SMTP_SECURE: process.env.SMTP_SECURE === "true",
   SMTP_USER: process.env.SMTP_USER || "",
   SMTP_PASS: process.env.SMTP_PASS || "",
-  MAIL_FROM: process.env.MAIL_FROM || process.env.SMTP_USER || "noreply@buytogether.app",
+  MAIL_FROM: process.env.MAIL_FROM || process.env.SMTP_USER || "developerguilds@gmail.com",
 };
 
 export default env;

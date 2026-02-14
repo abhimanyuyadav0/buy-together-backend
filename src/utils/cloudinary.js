@@ -7,7 +7,7 @@ cloudinary.config({
   api_secret: env.CLOUDINARY_API_SECRET,
 });
 
-export async function uploadImageBuffer(buffer, folder = "buy-together") {
+export async function uploadImageBuffer(buffer, folder = "dealsplitr") {
   if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
     throw new Error("Cloudinary is not configured");
   }

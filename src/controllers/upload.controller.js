@@ -13,7 +13,7 @@ export async function uploadImage(req, res, next) {
       return sendError(res, "No file uploaded", HTTP_STATUS.BAD_REQUEST);
     }
 
-    const { url, publicId } = await uploadImageBuffer(req.file.buffer, "buy-together/posts");
+    const { url, publicId } = await uploadImageBuffer(req.file.buffer, "dealsplitr/posts");
 
     return success(res, { url, publicId }, "Image uploaded", HTTP_STATUS.CREATED);
   } catch (err) {

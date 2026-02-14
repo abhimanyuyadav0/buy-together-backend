@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "buy-together-backend",
+      name: "dealsplitr-backend",
       script: "src/index.js",
       cwd: __dirname,
       env: {
