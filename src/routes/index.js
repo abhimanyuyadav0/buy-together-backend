@@ -6,10 +6,12 @@ import chatRoutes from "./chat.routes.js";
 import categoryRoutes from "./category.routes.js";
 import uploadRoutes from "./upload.routes.js";
 import ratingRoutes from "./rating.routes.js";
+import themeRoutes from "./theme.routes.js";
 
 const router = express.Router();
 
 router.use("/auth", authRoutes);
+router.use("/theme", themeRoutes);
 router.use("/users", userRoutes);
 router.use("/posts", postRoutes);
 router.use("/chats", chatRoutes);
