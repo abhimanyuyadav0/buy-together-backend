@@ -8,6 +8,7 @@ async function list(req, res, next) {
     const latNum = lat != null ? parseFloat(lat) : undefined;
     const lngNum = lng != null ? parseFloat(lng) : undefined;
     const maxDistNum = maxDistance != null ? parseInt(maxDistance, 10) : undefined;
+    const userId = req.user?.id || req.user?._id?.toString();
     const posts = await postService.list({
       category,
       status,
@@ -16,6 +17,7 @@ async function list(req, res, next) {
       lat: latNum,
       lng: lngNum,
       maxDistance: maxDistNum,
+      userId,
     });
     return success(res, { posts }, "Posts");
   } catch (err) {
@@ -43,7 +45,6 @@ async function create(req, res, next) {
     if (
       !body.title ||
       !body.description ||
-      images.length === 0 ||
       (body.price == null && body.offerPrice == null) ||
       !body.quantity ||
       !body.maxParticipants ||
@@ -53,7 +54,7 @@ async function create(req, res, next) {
     ) {
       return error(
         res,
-        "title, description, images (or image), price (or offerPrice), quantity, maxParticipants, category, deadline, endDate are required",
+        "title, description, price (or offerPrice), quantity, maxParticipants, category, deadline, endDate are required",
         HTTP_STATUS.BAD_REQUEST
       );
     }

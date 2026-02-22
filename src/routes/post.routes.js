@@ -1,11 +1,11 @@
 import express from "express";
 import asyncHandler from "../middlewares/asyncHandler.middleware.js";
 import * as postController from "../controllers/post.controller.js";
-import auth from "../middlewares/auth.middleware.js";
+import auth, { optionalAuth } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-router.get("/", asyncHandler(postController.list));
+router.get("/", optionalAuth, asyncHandler(postController.list));
 router.get("/:id", asyncHandler(postController.getById));
 router.post("/", auth, asyncHandler(postController.create));
 router.post("/:id/join", auth, asyncHandler(postController.join));

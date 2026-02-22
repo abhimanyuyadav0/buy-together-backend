@@ -27,4 +27,23 @@ async function auth(req, res, next) {
   }
 }
 
+/** Optional auth: sets req.user when token valid, does not fail when no token. */
+async function optionalAuth(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!token) {
+      next();
+      return;
+    }
+    const decoded = jwt.verify(token, env.JWT_SECRET);
+    const user = await userService.findById(decoded.userId);
+    if (user) req.user = user;
+    next();
+  } catch {
+    next();
+  }
+}
+
 export default auth;
+export { optionalAuth };

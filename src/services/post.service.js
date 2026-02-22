@@ -10,15 +10,22 @@ function escapeRegex(str) {
 }
 
 async function list(filters = {}) {
-  const { category, status = "active", location, q, lat, lng, maxDistance = DEFAULT_MAX_DISTANCE_M } = filters;
+  const { category, status = "active", location, q, lat, lng, maxDistance = DEFAULT_MAX_DISTANCE_M, userId } = filters;
   const now = new Date();
-  const query = {
-    status: status || "active",
+  const statusFilter = status || "active";
+  // When userId provided (authenticated), include their drafts so they see them in "My Posts"
+  const statusClause = userId
+    ? { $or: [{ status: "active" }, { status: "draft", creatorId: userId }] }
+    : { status: statusFilter };
+  const endDateClause = {
     $or: [
       { endDate: { $gt: now } },
       { endDate: null },
       { endDate: { $exists: false } },
     ],
+  };
+  const query = {
+    $and: [statusClause, endDateClause],
   };
   if (category) query.category = category;
   if (location) {
@@ -169,6 +176,7 @@ async function create(data) {
     creator?.currency && allowed.includes(String(creator.currency).toUpperCase().trim())
       ? String(creator.currency).toUpperCase().trim()
       : "INR";
+  const postStatus = images.length ? "active" : "draft";
   const post = await Post.create({
     title: data.title,
     description: data.description,
@@ -187,7 +195,7 @@ async function create(data) {
     locationGeo: locationGeo || undefined,
     deadline: data.deadline,
     endDate: data.endDate,
-    status: "active",
+    status: postStatus,
     creatorId: data.creatorId,
   });
   await Participant.create({
@@ -302,6 +310,11 @@ async function update(postId, userId, updates) {
   allowed.forEach((key) => {
     if (updates[key] !== undefined) post[key] = updates[key];
   });
+  // When adding images to a draft, set primary image and promote to active
+  if (post.status === "draft" && post.images?.length) {
+    post.image = post.images[0];
+    post.status = "active";
+  }
   await post.save();
   return getById(postId);
 }

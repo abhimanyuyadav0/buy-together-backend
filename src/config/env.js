@@ -29,6 +29,8 @@ const env = {
   SMTP_USER: process.env.SMTP_USER || "",
   SMTP_PASS: process.env.SMTP_PASS || "",
   MAIL_FROM: process.env.MAIL_FROM || process.env.SMTP_USER || "developerguilds@gmail.com",
+  ADMIN_API_KEY: process.env.ADMIN_API_KEY || "",
+  API_BASE_URL: process.env.API_BASE_URL || "http://localhost:5002",
 };
 
 export default env;

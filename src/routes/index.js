@@ -7,9 +7,11 @@ import categoryRoutes from "./category.routes.js";
 import uploadRoutes from "./upload.routes.js";
 import ratingRoutes from "./rating.routes.js";
 import themeRoutes from "./theme.routes.js";
+import adminRoutes from "./admin.routes.js";
 
 const router = express.Router();
 
+router.use("/admin", adminRoutes);
 router.use("/auth", authRoutes);
 router.use("/theme", themeRoutes);
 router.use("/users", userRoutes);

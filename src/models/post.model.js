@@ -28,7 +28,7 @@ const postSchema = new mongoose.Schema(
     endDate: { type: Date, required: true },
     status: {
       type: String,
-      enum: ["active", "completed", "expired", "deleted"],
+      enum: ["active", "draft", "completed", "expired", "deleted"],
       default: "active",
     },
     creatorId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
